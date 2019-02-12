@@ -1,3 +1,6 @@
+**This is a clone of the software package** `low-rank-opt` **by Michael Friedlander**.  **The original
+can be found at** https://www.cs.ubc.ca/~mpf/pubs/low-rank-spectral-optimization-via-gauge-duality/
+
 Contents
 --------
 * `./setpath.m`: script to add dependencies to the path. *Run this first.*
