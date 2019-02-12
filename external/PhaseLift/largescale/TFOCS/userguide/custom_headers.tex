@@ -1,0 +1,166 @@
+%--------------
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{conjecture}[theorem]{Conjecture}
+
+\newtheorem{remark}[subsection]{Remark}
+\newtheorem{remarks}[subsection]{Remarks}
+\newtheorem{example}[subsection]{Example}
+\floatname{algorithm}{Listing}
+
+
+
+%% commenting
+% Affect margins:
+%\setlength{\marginparwidth}{1.2in}
+\setlength{\marginparwidth}{.8in}
+\let\oldmarginpar\marginpar
+\renewcommand\marginpar[1]{\-\oldmarginpar[\raggedleft\footnotesize #1]%
+{\raggedright\footnotesize #1}}
+
+% For making comments in the draft:
+% Stephen (SRB)'s comments:
+\newcommand{\srbmargin}[1]{\marginpar{\raggedright\scriptsize\textcolor{red}{SRB: #1}}}
+\newcommand{\tfocsMargin}[2][0]{\marginpar{\vspace{#1 em} \rule{.2mm}{1em} \texttt{#2} }}
+\setlength{\marginparpush}{1em}  % min. vertical distance between margin comments
+\setlength{\marginparsep}{1ex} % horizontal distance from main text to start of margin
+% define an underscore character:
+\def\us{\char`\_}
+
+\newcommand{\srb}[1]{\textcolor{red}{SRB: #1}}
+
+
+%% MCG's definitions
+\newcommand\thalf{{\textstyle\frac{1}{2}}}
+\newcommand\DSA{$\texttt{DS}^2$\xspace}
+\newcommand\dom{\operatorname{\textrm{dom}}}
+\newcommand\Int{\operatorname{\textrm{Int}}}
+\newcommand{\bmat}[1]{\begin{bmatrix} #1 \end{bmatrix}}
+
+%% TT's definitions
+\newcommand\tr{{{\operatorname{trace}}}}
+\newcommand{\eps}{\varepsilon}
+
+% SRB's definitions
+\newcommand{\AAA}{\ensuremath{\mathcal{A}}}   % generic linear operator
+\newcommand{\cA}{\ensuremath{\mathcal{A}}}    % generic linear operator
+\newcommand{\K}{\ensuremath{\mathcal{K}}}     % cone
+\newcommand{\cK}{\ensuremath{\mathcal{K}}}    % cone
+\newcommand{\proj}{\ensuremath{\mathcal{P}}}  % Projection
+\renewcommand{\P}{\operatorname{\mathbb{P}}}
+
+\newcommand{\lag}{\ensuremath{\mathcal{L}}}   % Lagrangian
+\renewcommand{\L}{{\mathcal L}}
+
+\newcommand{\order}{\mathcal{O}}              % big O notation
+\DeclareMathOperator*{\argmax}{argmax}        % puts subscripts in the right place
+\DeclareMathOperator*{\argmin}{argmin}
+\DeclareMathOperator*{\minimize}{minimize}
+\DeclareMathOperator*{\maximize}{maximize}
+\newcommand{\st}{\ensuremath{\;\text{such that}\;}}
+\newcommand{\gs}{g_\text{sm}}             % smooth part of dual objective
+
+% shortcuts
+\newcommand{\za}{z^{(1)}}
+\newcommand{\zb}{z^{(2)}}
+
+% to get the ones vector to look nice (without using the bbold package)
+\newcommand{\bbfamily}{\fontencoding{U}\fontfamily{bbold}\selectfont}
+\newcommand{\textbb}[1]{{\bbfamily#1}}
+\DeclareMathAlphabet{\mathbbb}{U}{bbold}{m}{n}
+\newcommand{\ones}{\mathbbb 1}                % ones vector 
+
+\DeclareMathOperator{\vect}{vec}            % vec(X) = X(:) in matlab notation
+\DeclareMathOperator{\mat}{mat}             % mat(x) = reshape(x,N,N)
+
+\DeclareMathOperator{\prox}{prox}             % mat(x) = reshape(x,N,N)
+
+%\newcommand{\defeq}{\mathrel{\mathop:}=}      % for definitions, e.g. z := y + 3
+%\newcommand{\defeq}{\triangleq}               %   another alternative
+%\newcommand{\defeq}{\equiv}                   %   another alternative
+\newcommand{\defeq}{\stackrel{\text{\tiny def}}{=}}  %   another alternative
+%\newcommand{\defeq}{\stackrel{\text{\tiny def}}{\hbox{\equalsfill}}}  % another alternative, doesn't work
+
+
+%--------------
+% EJC's macros
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\<}{\langle}
+\renewcommand{\>}{\rangle}
+\newcommand{\Var}{\textrm{Var}}
+\newcommand{\goto}{\rightarrow}
+\newcommand{\E}{\operatorname{\mathbb{E}}}
+\newcommand{\norm}[1]{{\left\lVert{#1}\right\rVert}}
+\newcommand{\col}{\textrm{col}}
+
+\newcommand{\e}{\mathrm{e}}
+\renewcommand{\i}{\imath}
+
+% macros for the outline
+\newcommand{\todo}{{\bf \textcolor{red}{TODO} }}
+\newcommand{\TODO}[1]{{\bf TODO: #1}}
+\newcommand{\red}{\textcolor{red}}
+\newcommand{\note}[1]{{\bf [{\em Note:} #1]}}
+
+% Specific commands
+\newcommand{\ud}{\underline{\delta}}
+
+
+% Linear algebra macros
+%\newcommand{\vct}[1]{\bm{#1}}
+%\newcommand{\mtx}[1]{\bm{#1}}
+\newcommand{\vct}[1]{{#1}}
+\newcommand{\mtx}[1]{{#1}}
+%\newcommand{\mtx}[1]{\mathsfsl{#1}}
+\renewcommand{\vec}[1]{{\boldsymbol{#1}}}
+
+%\newcommand{\T}{*}                           % (see also \transp, \adj below)
+\newcommand{\T}{T}                            % for the adjoint/transpose
+\newcommand{\transp}{T}
+\newcommand{\adj}{*}
+\newcommand{\psinv}{\dagger}
+
+\newcommand{\sgn}{\textrm{sgn}}
+\newcommand{\sign}{\textrm{sgn}}
+\newcommand{\shr}{\operatorname{shrink}}
+\newcommand{\shrink}{\operatorname{shrink}}
+\newcommand{\trunc}{\operatorname{trunc}}
+
+\newcommand{\lspan}[1]{\operatorname{span}{#1}}
+\newcommand{\range}{\operatorname{range}}
+\newcommand{\colspan}{\operatorname{colspan}}
+\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\diag}{\operatorname{diag}}
+\newcommand{\trace}{\operatorname{trace}}
+\newcommand{\supp}[1]{\operatorname{supp}(#1)}
+
+\newcommand{\smax}{\sigma_{\max}}
+\newcommand{\smin}{\sigma_{\min}}
+
+\newcommand{\restrict}[1]{\big\vert_{#1}}
+
+\newcommand{\Id}{\text{\em I}}
+\newcommand{\OpId}{\mathcal{I}}
+
+
+\numberwithin{equation}{section}
+
+\def \endprf{\hfill {\vrule height6pt width6pt depth0pt}\medskip}
+\newenvironment{proof}{\noindent {\bf Proof} }{\endprf\par}
+
+
+\newcommand{\qed}{{\unskip\nobreak\hfil\penalty50\hskip2em\vadjust{}
+           \nobreak\hfil$\Box$\parfillskip=0pt\finalhyphendemerits=0\par}}
+
+
+\newcommand{\iprod}[2]{\left\langle #1 , #2 \right\rangle}
+\newcommand{\iprodMed}[2]{\Bigl\langle #1 , #2 \Bigr\rangle}
+
+
+
+\pagestyle{plain}

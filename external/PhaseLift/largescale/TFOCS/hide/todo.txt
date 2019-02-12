@@ -1,0 +1,53 @@
+Tasks:
+    (1) make experiments run with new software, so MPC can verify
+    (2) update userguide, e.g. add continuation
+    (3) add continuation to tfocs_SCD()
+    (4) add a few more experiments, and clean some of them up
+    (5) make sure efficient nuclear norm solver is working (part of (1) also)
+
+
+Experiments to add:
+
+URGENT (for initial release) 
+
+  - Analysis
+
+  - TV
+
+NOT URGENT (for later release)
+
+  - Dantzig, as LP (do 3 methods of Dantzig: conic, LP, and analysis with W = I)
+
+  - TV + Analysis
+
+  - nuclear norm, w/ efficient version
+
+  - block norms (e.g. l_infinity or l2 of rows )
+
+  - Analysis (with Dantzig)
+
+  - RPCA
+
+
+Clean examples to add:
+    - Dantzig
+    - Nuclear norm, e.g. how to use the error function with tfocs_tuple
+    - Analysis
+for cleaning examples, I prefer to keep the cvx code in there because it makes
+    it very clear what problem is being solved (but the user doesn't need cvx
+    since the examples should be able to load problems from disk)
+
+Documention in TFOCS.m:
+    Multiple objectives
+    Get ride of my_normest
+
+Stephen's notes:
+to hide a toolbox, do this:
+
+
+% -- for testing only --
+% flag = 'enable';  % either 'disable' or 'enable'
+% license('test','signal_toolbox',flag);
+% license('test','wavelet_toolbox',flag );
+% license('test','communication_toolbox', flag ); % (awgn)
+% license('test','image_toolbox',flag ); % (imshow, dct2)

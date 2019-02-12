@@ -1,0 +1,35 @@
+\contentsline {section}{\numberline {1}Introduction}{2}{section.1}
+\contentsline {subsection}{\numberline {1.1}Example library}{3}{subsection.1.1}
+\contentsline {section}{\numberline {2}Software details}{4}{section.2}
+\contentsline {subsection}{\numberline {2.1}Installation}{4}{subsection.2.1}
+\contentsline {subsection}{\numberline {2.2}File overview}{4}{subsection.2.2}
+\contentsline {subsection}{\numberline {2.3}Calling sequences}{4}{subsection.2.3}
+\contentsline {subsubsection}{\numberline {2.3.1}The initial point}{5}{subsubsection.2.3.1}
+\contentsline {subsubsection}{\numberline {2.3.2}The options structure}{5}{subsubsection.2.3.2}
+\contentsline {subsubsection}{\numberline {2.3.3}The SCD solver}{5}{subsubsection.2.3.3}
+\contentsline {subsection}{\numberline {2.4}Customizing the solver}{6}{subsection.2.4}
+\contentsline {subsubsection}{\numberline {2.4.1}Selecting the algorithm}{6}{subsubsection.2.4.1}
+\contentsline {subsubsection}{\numberline {2.4.2}Improving strong convexity performance}{7}{subsubsection.2.4.2}
+\contentsline {subsubsection}{\numberline {2.4.3}Line search control}{7}{subsubsection.2.4.3}
+\contentsline {subsubsection}{\numberline {2.4.4}Stopping criteria}{7}{subsubsection.2.4.4}
+\contentsline {subsubsection}{\numberline {2.4.5}Data collection and printing}{8}{subsubsection.2.4.5}
+\contentsline {subsubsection}{\numberline {2.4.6}Operation counts}{9}{subsubsection.2.4.6}
+\contentsline {section}{\numberline {3}Constructing models}{9}{section.3}
+\contentsline {subsection}{\numberline {3.1}Functions: smooth and nonsmooth}{10}{subsection.3.1}
+\contentsline {subsubsection}{\numberline {3.1.1}Generators}{10}{subsubsection.3.1.1}
+\contentsline {paragraph}{Smooth functions:}{10}{section*.2}
+\contentsline {paragraph}{Indicator functions:}{11}{section*.3}
+\contentsline {paragraph}{Other nonsmooth functions:}{11}{section*.4}
+\contentsline {paragraph}{Function combining and scaling:}{11}{section*.5}
+\contentsline {subsubsection}{\numberline {3.1.2}Building your own}{11}{subsubsection.3.1.2}
+\contentsline {subsection}{\numberline {3.2}Linear operators}{12}{subsection.3.2}
+\contentsline {subsubsection}{\numberline {3.2.1}Generators}{13}{subsubsection.3.2.1}
+\contentsline {subsubsection}{\numberline {3.2.2}Building your own}{14}{subsubsection.3.2.2}
+\contentsline {section}{\numberline {4}Advanced usage}{14}{section.4}
+\contentsline {subsection}{\numberline {4.1}Matrix variables}{14}{subsection.4.1}
+\contentsline {subsection}{\numberline {4.2}Complex variables and operators}{15}{subsection.4.2}
+\contentsline {subsection}{\numberline {4.3}Block structure}{15}{subsection.4.3}
+\contentsline {subsection}{\numberline {4.4}Block structure and SCD models}{17}{subsection.4.4}
+\contentsline {subsection}{\numberline {4.5}Scaling issues}{18}{subsection.4.5}
+\contentsline {subsection}{\numberline {4.6}Custom vector spaces}{18}{subsection.4.6}
+\contentsline {section}{\numberline {5}Feedback and support}{18}{section.5}

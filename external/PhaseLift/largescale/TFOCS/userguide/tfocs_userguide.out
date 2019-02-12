@@ -1,0 +1,31 @@
+\BOOKMARK [1][-]{section.1}{Introduction}{}
+\BOOKMARK [2][-]{subsection.1.1}{Example library}{section.1}
+\BOOKMARK [1][-]{section.2}{Software details}{}
+\BOOKMARK [2][-]{subsection.2.1}{Installation}{section.2}
+\BOOKMARK [2][-]{subsection.2.2}{File overview}{section.2}
+\BOOKMARK [2][-]{subsection.2.3}{Calling sequences}{section.2}
+\BOOKMARK [3][-]{subsubsection.2.3.1}{The initial point}{subsection.2.3}
+\BOOKMARK [3][-]{subsubsection.2.3.2}{The options structure}{subsection.2.3}
+\BOOKMARK [3][-]{subsubsection.2.3.3}{The SCD solver}{subsection.2.3}
+\BOOKMARK [2][-]{subsection.2.4}{Customizing the solver}{section.2}
+\BOOKMARK [3][-]{subsubsection.2.4.1}{Selecting the algorithm}{subsection.2.4}
+\BOOKMARK [3][-]{subsubsection.2.4.2}{Improving strong convexity performance}{subsection.2.4}
+\BOOKMARK [3][-]{subsubsection.2.4.3}{Line search control}{subsection.2.4}
+\BOOKMARK [3][-]{subsubsection.2.4.4}{Stopping criteria}{subsection.2.4}
+\BOOKMARK [3][-]{subsubsection.2.4.5}{Data collection and printing}{subsection.2.4}
+\BOOKMARK [3][-]{subsubsection.2.4.6}{Operation counts}{subsection.2.4}
+\BOOKMARK [1][-]{section.3}{Constructing models}{}
+\BOOKMARK [2][-]{subsection.3.1}{Functions: smooth and nonsmooth}{section.3}
+\BOOKMARK [3][-]{subsubsection.3.1.1}{Generators}{subsection.3.1}
+\BOOKMARK [3][-]{subsubsection.3.1.2}{Building your own}{subsection.3.1}
+\BOOKMARK [2][-]{subsection.3.2}{Linear operators}{section.3}
+\BOOKMARK [3][-]{subsubsection.3.2.1}{Generators}{subsection.3.2}
+\BOOKMARK [3][-]{subsubsection.3.2.2}{Building your own}{subsection.3.2}
+\BOOKMARK [1][-]{section.4}{Advanced usage}{}
+\BOOKMARK [2][-]{subsection.4.1}{Matrix variables}{section.4}
+\BOOKMARK [2][-]{subsection.4.2}{Complex variables and operators}{section.4}
+\BOOKMARK [2][-]{subsection.4.3}{Block structure}{section.4}
+\BOOKMARK [2][-]{subsection.4.4}{Block structure and SCD models}{section.4}
+\BOOKMARK [2][-]{subsection.4.5}{Scaling issues}{section.4}
+\BOOKMARK [2][-]{subsection.4.6}{Custom vector spaces}{section.4}
+\BOOKMARK [1][-]{section.5}{Feedback and support}{}

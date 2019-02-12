@@ -1,0 +1,1338 @@
+\documentclass{article}
+\usepackage{graphicx,amsmath,amsfonts,amscd,amssymb,
+	cite,epsfig,epsf,url,color,algorithm,algorithmic}
+	% not using bm, xpsace, bbold
+\usepackage[pdftex,pdfborder={0 0 0}]{hyperref}
+\usepackage{fullpage} \usepackage[small,bf]{caption}
+\usepackage{fancyvrb}
+\setlength{\captionmargin}{30pt}
+\DefineVerbatimEnvironment{code}{Verbatim}{tabsize=0,xleftmargin=0.25in}
+
+% ---------- all the customized macros and such are here ----------
+\input{custom_headers}
+% -----------------------------------------------------------------
+
+
+
+\title{TFOCS v1.0 user guide (BETA)}
+
+\author{Stephen Becker, Emmanuel J. Cand\`es and Michael Grant \\
+  \vspace{-.1cm}\\
+  Applied and Computational Mathematics,
+  Caltech, Pasadena, CA 91125}
+
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+
+\section{Introduction}
+
+TFOCS (pronounced \emph{tee-fox}) is a library designed to facilitate
+the construction of first-order methods for a variety of convex
+optimization problems. Its development was motivated by its authors'
+interest in compressed sensing, sparse recovery, and low rank matrix
+completion, see the companion paper \cite{TFOCS}, but the software is
+applicable to a wider variety of models than those discussed in the
+paper. Before we begin, we would advise the reader to check
+\cite{TFOCS} as many of the underlying mathematical concepts are
+introduced therein.
+
+The core TFOCS routine \verb@tfocs.m@ supports a particular standard
+form: the problem
+\begin{equation} 
+	\label{eq:stdform}
+	\begin{array}{ll}
+	\minimize & \phi(x) \triangleq f(\cA(x)+b) + h(x)
+	\end{array}
+\end{equation}
+where $f$ and $h$ are convex, $\cA$ is a linear operator,
+and $b$ is a vector. 
+The input variable $x$ is a real or complex vector, matrix, or element
+from a composite vector space.
+The function $f$ must be \emph{smooth}:
+its gradient $\nabla f(x)$ must be inexpensive to compute at any
+point in its domain. The function $h$,
+on the other hand, must be what we shall
+henceforth call \emph{prox-capable}: it must
+be inexpensive to compute its \emph{proximity operator}
+\begin{equation}
+	\label{eq:proxmin}
+	\Phi_h(x,t) = \argmin_z h(z) + \thalf t^{-1} \<z-x,z-x\>
+\end{equation}
+for any fixed $x$ and $t>0$. 
+In \cite{TFOCS}, we refer to this calculation as a \emph{generalized
+projection}, because it reduces to a projection when $h$ is an indicator
+function. A variety of useful convex functions are
+prox-capable, including norms and indicator functions for many
+common convex sets.
+Convex constraints are handled by including in $h$ an appropriate
+indicator function; unconstrained smooth problems
+by choosing $h(x)\equiv 0$; and concave maximizations by
+minimizing the negative of the objective.
+
+Let us briefly discuss the explicit inclusion of an affine
+form $\cA(x)+b$ into (\ref{eq:stdform}). Numerically speaking, it
+is redundant: the linear operator can instead be incorporated into the
+smooth function. However, it turns out that
+with careful accounting, one can reduce the number of times that
+$\cA$ or its adjoint $\cA^*$ are called during the evolution of a typical
+first-order algorithm. These savings can be significant when
+the linear operator is the most expensive part of the objective function,
+as with many compressed sensing models. Therefore, we
+encourage users to employ a separate affine form whenever possible,
+though it is indeed optional.
+
+As a simple example, consider the LASSO problem as specified by Tibshirani:
+\begin{equation}
+	\begin{array}{ll}
+		\text{minimize}   & \thalf\|Ax-b\|_2^2 \\
+		\text{subject to} & \|x\|_1 \leq \tau, 
+	\end{array}
+\end{equation}
+where $A\in\R^{m\times n}$, $b\in\R^m$, and $\tau>0$ are given; $A$
+can be supplied as a matrix or a function handle implementing the
+linear operator (see \S\ref{sec:linear}). One can rewrite this as
+\[
+	\begin{array}{ll}
+		\text{minimize}   & \thalf\|Ax-b\|_2^2 + h(x),\\
+	\end{array}
+\]
+where $h(x) = 0$ if $\|x\|_1 \le \tau$ and $+\infty$
+otherwise. Because the TFOCS library includes implementations of
+simple quadratics and $\ell_1$ norm balls, this model can be
+translated to a single line of code:
+\begin{code}
+	x = tfocs( smooth_quad, { A, -b }, proj_l1( tau )  );
+\end{code}
+Of course, there other ways to solve this problem, and some further
+customization is necessary to obtain the best performance. The
+library provides a file \verb@solver_LASSO.m@ that implements
+this model, and includes some of these improvements.
+
+
+A second TFOCS routine \verb@tfocs_SCD.m@ includes support for a 
+different standard form, motivated
+by the \emph{smoothed conic dual} (SCD) model studied in \cite{TFOCS}:
+\begin{equation}
+	\label{eq:stdform2}
+	\begin{array}{ll}
+	\text{minimize} & \bar{f}(x) + \thalf\mu\|x-x_0\|_2^2 + h(\cA(x)+b).
+	\end{array}
+\end{equation}
+In this case, neither $\bar{f}$ nor $h$ must be smooth, but both must
+be prox-capable. When $h$ is the indicator function for a convex cone
+$\cK$, (\ref{eq:stdform2}) is equivalent to
+\begin{equation}
+	\label{eq:stdform3} % SRB: was labeled stdform2, but that's already defined
+	\begin{array}{ll}
+          \text{minimize} &\bar{f}(x) + \thalf\mu\|x-x_0\|_2^2 \\
+          \text{subject to} & \cA(x) + b \in \cK,
+	\end{array}
+\end{equation}
+which is the SCD model discussed in \cite{TFOCS}. For convenience,
+then, we refer to (\ref{eq:stdform2}) as the SCD model, even though it
+is actually a bit more general.  The SCD model is equivalent to 
+\[
+	\begin{array}{ll}
+          \text{minimize} &\bar{f}(x) + \thalf\mu\|x-x_0\|_2^2 + h(y)\\
+          \text{subject to} & \cA(x) + b = y,
+	\end{array}
+\]
+which TFOCS expresses in saddle-point form
+\[
+	\begin{array}{ll}
+          \text{maximize} & \inf_{x,y} \bar{f}(x) + \thalf\mu\|x-x_0\|_2^2 + h(y) + \< \cA(x)+ b -y,z\>. 
+	\end{array}
+\]
+This simplifies to something useful, namely,
+\begin{equation}
+	\label{eq:stdform3-saddle}
+	\begin{array}{ll}
+	\text{maximize} & \inf_x \bar{f}(x) + \thalf\mu\|x-x_0\|_2^2 + \< \cA(x)+b,z\> - h^*(z),
+	\end{array}
+\end{equation}
+where $h^*$ is the convex conjugate of $h$; that is,
+\begin{equation}
+	h^*(z) \triangleq \textstyle \sup_y \<z,y\> - h(y).
+\end{equation}
+This model can be expressed as a maximization over $z$ in
+our primary standard form (\ref{eq:stdform}). 
+Therefore, given
+specifications for $\bar{f}$ and $h^*$, TFOCS can use the standard
+first-order machinery to solve it. For instance,
+consider the smoothed Basis Pursuit Denoising (BPDN) model
+\begin{equation}
+	\begin{array}{ll}
+		\text{minimize}   & \|x\|_1+\thalf\mu\|x\|_2^2 \\
+		\text{subject to} & \|Ax-b\|_2 \leq \delta
+	\end{array}
+\end{equation}
+with $A$, $b$, $\mu>0$, and $\delta>0$ given. The function $h$
+here is the indicator function for the norm ball of size $\delta$; its conjugate
+is $h^*(z)=\delta\|z\|_2$. The resulting TFOCS code is
+\begin{code}
+	x = tfocs_SCD( prox_l1, { A, -b }, prox_l2( delta ), mu  );
+\end{code}
+This model is considered in more detail in the file \verb@solver_sBPDN.m@.
+We have provided code for other common sparse recovery models
+as well.
+
+TFOCS includes a library of common functions and linear
+operators, so many useful models can be constructed without
+writing code. Users are free to implement their own functions as well.
+For a function $f$, TFOCS requires the ability to compute its value,
+as well as its gradient, proximity minimization
+(\ref{eq:proxmin}), or both, depending upon how it is to be used.
+For a linear operator $\cA$, TFOCS requires the ability to query
+the size of its input and output spaces, and to
+apply the forward or adjoint operation.
+The precise conventions for each of these constructs is
+provided in \S\ref{sec:functions} below. If you wish to
+construct a prox-capable function, we also refer you
+to the appendix of \cite{prox} for a list of proximity operators
+and their calculus.
+
+The design of TFOCS attempts to strike a balance
+between two competing interests. On one hand, we seek to present
+the algorithms themselves in a clean, readable
+style, so that it is easy to understand the mathematical steps
+that are taken and the differences between the variants. On
+the other, we wish to provide a flexible system with 
+configurability, full progress tracking, data collection, and
+so forth---all of which introduce considerable implementation
+complexity. To achieve this balance, we have moved as much of the
+complexity to scripts, objects, and functions that are not intended for
+consumption by the end user. Of course, in the spirit of open
+source, you are free to view and modify the internals yourself;
+but the documentation described here focuses on the interface
+presented to the user.
+
+\subsection{Example library}
+
+This document does not currently provide complete examples
+of TFOCS-based applications. However, we are accumulating a number of examples
+within the software distribution itself. For instance,
+a variety of drivers have been created to solve specific models;
+these have been given the prefix \verb@solver_@ and are found in
+the main TFOCS directory. 
+
+In addition, we invite the reader
+to peruse the \verb@examples/@ directory.
+Feel free to use one of the examples there as
+a template for your project. The subdirectory \verb@paper/@
+provides code that you can use to reproduce the results printed in \cite{TFOCS}.
+We will be adding to and updating the examples as we can.
+
+\section{Software details}
+\label{sec:software}
+
+\subsection{Installation}
+
+The TFOCS package is organized in a relatively flat directory
+structure. In order to use TFOCS, simply unpack the compressed 
+archive wherever you would prefer. Then add the base directory to your
+MATLAB path; for example,
+\begin{code}
+	addpath /home/mcg/matlab/TFOCS/
+\end{code}
+Do \emph{not} add the \verb+private/+ directory or any directories beginning
+with \verb+@+ to your path; MATLAB will find those directories automatically
+under appropriate circumstances.
+You can also add the directory via \verb+pathtool+, which will give you the option
+to save the path so that you never have to do this again.
+
+\subsection{File overview}
+
+The different types of files found in the \verb+TFOCS/+ directory are
+distinguished by their prefix. A more complex description of each 
+function is provided in their on-line help; a later version of this
+user guide will provide detailed descriptions of each in an appendix.
+\begin{itemize}
+\item \verb@tfocs_@: The core solvers implementing optimal first-order
+methods for the primary standard form (\ref{eq:stdform}) (\verb@tfocs.m@ and others),
+and the SCD model (\ref{eq:stdform2}) (\verb@tfocs_SCD.m@).
+\item \verb@solver_@: Solvers for specific standard forms such as the
+smoothed Dantzig selector and the LASSO. Besides providing
+ready-to-use solvers for specific models, these provide good templates
+to copy for constructing new solvers.
+\item \verb@smooth_@, \verb@prox_@, \verb@proj_@, \verb@tfunc_@: functions to construct
+and manipulate various smooth and nonsmooth functions.
+\item \verb@linop_@: functions to construct and manipulate linear operators.
+\end{itemize}
+
+\subsection{Calling sequences}
+
+The primary solver \verb@tfocs.m@ accepts the following input sequence:
+\begin{code}
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF, x0, opts );
+\end{code}
+The inputs are as follows:
+\begin{itemize}
+\item \verb@smoothF@: a smooth function (\S\ref{sec:smoothandnon}).
+\item \verb@affineF@: an affine form specification. To represent an
+affine form $\cA(x)+b$, this should be a cell array 
+\verb@{ linearF, b }@, where \verb@linearF@ is the implementation
+of $\cA$  (\S\ref{sec:linear}). However, if $b=0$, then supplying
+\verb@linearF@ alone will suffice.
+\item \verb@nonsmoothF@: a nonsmooth function
+(\S\ref{sec:smoothandnon}).
+\item \verb@x0@: the starting point for the algorithm.
+\item \verb@opts@: a structure of configuration options.
+\end{itemize}
+The smooth function is required, but all other inputs are optional,
+and may be omitted or replaced with
+an empty array \verb@[]@ or cell array \verb@{}@.
+
+\subsubsection{The initial point}
+
+If \verb@x0@ is not supplied, TFOCS will attempt to deduce its
+proper size from the other inputs (in particular the linear operator).
+If successful, it will initialize \verb@x0@ with the zero vector of
+that size. But whether or not \verb@x0@ is supplied, TFOCS must
+verify its feasibility as follows:
+\begin{enumerate}
+\item If $h(x_0)=+\infty$,
+the point must be projected into $\dom h$. So a single projection
+with step size 1 is performed, and $x_0$ is replaced with this value.
+\item The value and gradient of $f(\cA(x_0))$ are computed. Its value
+must be finite or, the algorithm cannot proceed; TFOCS
+has no way to query for a point in $\dom f(\cA(\cdot))$.
+\end{enumerate}
+Therefore, for best results, it is best to supply an explicit value
+of $x_0$ that is known to lie within the domain of the objective function.
+
+\subsubsection{The options structure}
+
+The \verb@opts@ structure provides several options for customizing
+the behavior of TFOCS. To obtain a copy of the default option structure
+for a particular solver, call that solver with no arguments:
+\begin{code}
+	opts = tfocs;
+	opts = tfocs_SCD;
+\end{code}
+We will discuss the various entries of the \verb@opts@ structure
+throughout the remainder of \S\ref{sec:software}. For now,
+we highlight one: \verb@opts.maxmin@. By default, \verb@maxmin = 1@
+and TFOCS performs a minimization; setting it to \verb@maxmin = -1@
+causes TFOCS to perform a concave maximization. In that case,
+the smooth function \verb@smoothF@ must be concave; the nonsmooth
+function \verb@nonsmoothF@ remains convex. Thus the objective 
+function being maximized is $f(\cA(x)+b)-h(x)$.
+
+\subsubsection{The SCD solver}
+
+The calling sequence for the SCD solver is as follows:
+\begin{code}
+	[ x, out ] = tfocs_SCD( objectiveF, affineF, conjugateF, mu, x0, z0, opts );
+\end{code}
+The inputs are as follows:
+\begin{itemize}
+\item \verb@objectiveF@: a function $g$; 
+or, more precisely, any
+function that supports the proximity minimization (\ref{eq:proxmin}).
+\item \verb@affineF@: an affine form specification.
+\item \verb@conjugateF@: the conjugate $h^*$ of the second nonsmooth function $h$.
+\item \verb@mu@: the scaling for the quadratic term $\thalf\mu\|x-x_0\|_2$. Must be positive.
+\item \verb@x0@: the center-point for the quadratic term; defaults to 0.
+\item \verb@z0@: the initial dual point.
+\item \verb@opts@: a structure of configuration options.
+\end{itemize}
+In this case, \verb@affineF@, \verb@conjugateF@, and \verb@mu@ are required.
+If \verb@objectiveF@ is empty, it is assumed that $g(x)\equiv 0$. 
+
+Because TFOCS solves the dual of the SCD model, it is in fact the dual point
+\verb@z0@ that the underlying algorithm uses to initialize itself. Therefore,
+\verb@z0@ must be verified in the manner that \verb@x0@ is above. However,
+the all-zero value of \verb@z0@ is always acceptable:
+in the worst case, TFOCS will have to project away from zero to begin,
+but that result will always be feasible.
+
+\subsection{Customizing the solver}
+
+\subsubsection{Selecting the algorithm}
+
+TFOCS implements six different first-order methods, 
+each represented by a 2/3-letter acronym:
+\begin{itemize}
+\itemsep 0pt
+\item \verb@AT@: Auslender and Teboulle's single-projection method.
+\item \verb@GRA@: A standard, un-accelerated proximal gradient method.
+\item \verb@LLM@: Lan, Lu, and Monteiro's dual-projection method.
+\item \verb@N07@: Nesterov's dual-projection 2007 method.
+\item \verb@N83@: Nesterov's single-projection 1983 method.
+\item \verb@TS@: Tseng's single-projection modification of Nesterov's 2007 method.
+\end{itemize}
+To select one of these algorithms explicitly, provide the corresponding
+acronym in the \verb@opts.alg@ parameter. For instance,
+to select the Lan, Lu, \& Monteiro method, use
+\begin{code}
+	opts.alg = 'LLM';
+\end{code}
+when calling  \verb@tfocs.m@ or \verb@tfocs_SCD.m@. The current default
+algorithm is \verb@AT@, although this is subject to change as we do
+further research. Therefore, once you are satisfied with the performance
+of your model, you may wish to explicitly specify \verb@opts.alg = 'AT'@
+to protect yourself against unexpected changes.
+
+A full discussion of these variants, and their practical differences, is
+given in \S5.2 of \cite{TFOCS}. Here are some of the highlights:
+\begin{itemize}
+\item For most problems, the standard proximal gradient method 
+\verb@GRA@ will perform significantly worse than a properly
+tuned optimal method. We provide it primarily for comparison.
+\item One apparent exception to this rule is when a model is
+strongly convex. In that case, \verb@GRA@ will achieve
+linear performance, and the others will not. However, this disadvantage
+can be eliminated with judicious use of the \verb@opts.restart@
+parameter; see \S\ref{sec:restart} for information.
+\item The iterates generated by Nesterov's 1983 method \verb@N83@ sometimes
+fall outside of the domain of the objective function. If the smooth function is
+finite everywhere, this is not an issue. But if it is not, one of the other
+methods should be considered.
+\item In most cases, the extra projections made by
+\verb@LLM@ and \verb@N07@
+do not significantly improve performance as measured by the number of linear
+operations or projections required to achieve a certain tolerance. Therefore,
+when the projection cost is significant (for example, for matrix completion
+problems), single-projection methods are preferred.
+\end{itemize}
+Outside of the specific cases discussed above, all of the optimal
+methods (that is, except \verb@GRA@)
+achieve similar performance on average.
+However, we have observed that in some cases, one specific
+method will stand out over others.
+Therefore, for a new application, it is worthwhile to experiment with
+the different variants and/or solver parameters to find the best
+possible combination.
+
+You may notice that the TFOCS distribution includes a number of
+files of the form \verb@tfocs_AT.m@, \verb@tfocs_GRA.m@, and so forth.
+These are the actual implementations of the specific algorithms.
+The \verb@tfocs.m@ driver calls one of these functions
+according to the value of the \verb@opts.alg@ option, and they have
+the same calling sequence as \verb@tfocs.m@ itself. Feel free to
+examine these files; we have endeavored to make them clean and readable.
+
+\subsubsection{Improving strong convexity performance}
+\label{sec:restart}
+
+As mentioned above, so-called optimal first-order methods tend to suffer
+in performance compared to a standard gradient method when the objective
+function is strongly convex. This is an inevitable consequence of the
+way optimal first-order methods are constructed.
+
+Using the \verb@restart@ option, it is possible to overcome this
+limitation. This option has a simple effect: it resets the optimal
+first-order method every \verb@restart@ iterations. It turns out that
+by doing this, the acceleration parameter $\theta_k$ remains within a
+range that preserves linear convergence for strongly convex
+problems.\footnote{See Section 5 in \cite{TFOCS} for a proper introduction to
+the role played by the parameter sequence $\{\theta_k\}$.} Supplying a negative
+value of \verb@restart@ imposes a ``no regress'' condition: it resets
+$\theta_k$ \emph{either} after \verb@abs(restart)@ iterations,
+\emph{or} if the objective function fails to decrease, whichever comes
+first.
+
+The disadvantage of restart is that the optimal choice for
+\verb@opts.restart@ can almost never be determined in advance.
+A bit of trial and error testing
+is required to determine the best value.
+However, if you are willing to invest this effort, many models
+can achieve significant speedups. In fact, experimenting with
+restart is beneficial for many models that are \emph{not}
+strongly convex.
+
+Examples of 
+the effect of restart on algorithm performance are given in \S5.6 and 
+\S6.1 of \cite{TFOCS}. You can examine and reproduce those
+experiments using the code found in the subdirectories
+\begin{code}
+	TFOCS/examples/strong_convexity
+	TFOCS/examples/compare_solvers
+\end{code}
+of the TFOCS distribution. Some of the model-specific scripts,
+such as \verb@solver_LASSO.m@, already include a default value 
+of the \verb@restart@ parameter; but even when using those codes,
+further experimentation may be worthwhile.
+
+In a future version of TFOCS, we hope to provide a more automatic
+way to adaptively detect and exploit local strong convexity.
+
+\subsubsection{Line search control}
+
+TFOCS implements a slight variation of the backtracking line search methods
+presented in \cite{TFOCS}. The following parameters in the \verb@opts@ structure
+can be used to control it:
+\begin{trivlist}
+\item \texttt{L0}: The initial Lipschitz estimate. The default is \verb@1@, or
+\verb@Lexact@ (see below) if it is provided. \verb@L=1@ is 
+typically a severe underestimate, but the backtracking line search generally
+corrects for this after the first backtracking step.
+\item \texttt{beta}: The step size reduction that should occur if the Lipschitz bound
+is violated. If \verb@beta>=1@, TFOCS employs a fixed step size \verb@t=1/L@. The default
+is \verb@beta=0.5@; that is, the step size is halved when a violation occurs.
+\item \texttt{alpha}: The step size will be \emph{increased} by \verb@1/alpha@
+at each iteration. This allows the step size to adapt to changes in local curvature.
+The default value is \verb@alpha=0.9@.
+\item \texttt{Lexact}: The exact Lipschitz estimate. If supplied, it will do
+two things: first, it will prevent the step size from growing beyond \verb@t=1/Lexact@.
+Second, if the backtracking search \emph{tries} to grow it beyond this level,
+it will issue a warning. This is useful if you believe you know what the global
+Lipschitz constant is, and would like to verify either your calculations or
+your code.
+\end{trivlist}
+
+\subsubsection{Stopping criteria}
+
+There are a variety of ways to decide when the algorithm should terminate:
+\begin{trivlist}
+\item \texttt{tol}: TFOCS terminates when the iterates satisfy
+$\|x_{k+1}-x_k\|/\max\{1,\|x_{k+1}\|\}\leq\texttt{tol}$.
+The default value is $10^{-8}$; if set to zero or a negative value,
+this criterion will never be engaged.
+\item \texttt{maxIts}: The maximum number of iterations the algorithm
+should take; defaults to \verb@Inf@.
+\item \texttt{maxCounts}: This option causes termination after a certain
+number of function calls or linear operations are made; see 
+\S\ref{sec:opcounts}
+for details. It defaults to \verb@Inf@.
+\item \texttt{stopFcn}: This option allows you to supply one or more
+stopping criteria of your own design. To use it, set \verb@stopFcn@
+must be a function handle or a cell array of function handles. For
+\verb@tfocs.m@, these function handles will be called as follows:
+\begin{code}
+	stop = stopFcn( f, x );
+\end{code}
+where \verb@f@ is the function value and \verb@x@ is the current point.
+\begin{code}
+	stop = stopFcn( f, z, x );
+\end{code}
+where \verb@f@ is the current \emph{dual} function value, \verb@z@ is
+the current dual point, and  \verb@x@ is the current primal point.
+The output should either be  \verb@true@ or \verb@false@; if
+\verb@true@, the algorithm will stop.
+\end{trivlist}
+
+\subsubsection{Data collection and printing}
+\label{sec:data}
+
+The \verb@printEvery@ option tells TFOCS to provide a printed  update
+of its progress once every \verb@printEvery@ iterations. Its default
+value is 100. To suppress all output, set \verb@printEvery@ to zero.
+By default, the printing occurs on the standard output; to redirect
+it to another file, set the \verb@fid@ option to the FID of the
+file (the FID is the output of MATLAB's \verb@fopen@ command).
+
+The second output \verb@out@ of \verb@tfocs.m@ and \verb@tfocs_SCD.m@ (as well
+as the algorithm-specific functions \verb@tfocs_AT.m@, etc.) is a structure
+containing additional information about the execution of the algorithm.
+The fields contained in this structure include:
+\begin{trivlist}
+\item \verb@alg@: the 2-3 letter acronym of the algorithm used.
+\item \verb@algorithm@: the long name of the algorithm.
+\item \verb@status@: a string describing the reason the algorithm terminated.
+\item \verb@dual@: the value of the dual variable, for saddle-point problems.
+\end{trivlist}
+Furthermore, if \verb@opts.saveHist = true@, several additional fields
+will be included containing a per-iteration history of the following values:
+\begin{trivlist}
+\item \verb@f@: the objective value.
+\item \verb@theta@: the acceleration parameter $\theta$.
+\item \verb@stepsize@: the step size; i.e., the reciprocal of the local Lipschitz estimate.
+\item \verb@norm_x@: the Euclidean norm of the current iterate $\|x_k\|$.
+\item \verb@norm_dx@: the Euclidean norm of the difference $\|x_k-x_{k-1}\|$.
+\item \verb@counts@: operation counts; see \S\ref{sec:opcounts}.
+\item \verb@err@: custom measures; see below for a description.
+\end{trivlist}
+% EJC: It might be good to distinguish between tfocs and tfocs_SCD
+% above. A table might be good.
+Note that for saddle point problems (like those constructed for
+\verb@tfocs_SCD@), TFOCS is actually solving the dual, so
+\verb@norm_x@ and \verb@norm_dx@ are computed using the dual variable.
+
+Using the \verb@errFcn@ option, you can construct your own error measurements
+for printing and/or logging. The convention is very similar to \verb@stopFcn@,
+in that \verb@errFcn@ should be a function handle or an array of function handles,
+and the calling convention is identical; that is,
+\begin{code}
+	val = errFcn( f, x );
+	val = errFcn( f, z, x );
+\end{code}
+for \verb@tfocs.m@ and \verb@tfocs_SCD.m@, respectively.
+However, unlike the \verb@stopFcn@ functions, error functions can return
+any scalar numeric value they wish. The results will be stored in the matrix
+\verb@out.err@, with each error function given its own column.
+
+\subsubsection{Operation counts}
+\label{sec:opcounts}
+
+Upon request, TFOCS can count the number of times that the algorithm requests each of the following
+five computations:
+\begin{itemize}
+\itemsep 0pt
+\item smooth function value,
+\item smooth function gradient,
+\item forward or adjoint linear operation,
+\item nonsmooth function value, and
+\item nonsmooth proximity minimization.
+\end{itemize}
+To do this, TFOCS wraps the functions with code that
+increments counter variables; the results are stored in \verb@out.counts@.
+Unfortunately, we have found that this wrapper causes
+a noticeable slowdown of the 
+algorithm, particularly for smaller models, so it is turned off by default.
+To activate it, set the \verb@countOpts@ option to \verb@true@. 
+
+Operation counts may also be used to construct a stopping criterion,
+using the \verb@maxCounts@ option to set an upper bound on the number
+of each operation the algorithm is permitted to make.
+For instance, to terminate the algorithm after 5000 applications
+of the linear operator, set
+\begin{code}
+	opts.maxCounts = [ Inf, Inf, 5000, Inf, Inf ].
+\end{code}
+If you set \verb@opts.maxCounts@ but not \verb@opts.countOps@,
+TFOCS will only count those operations involved in the stopping criteria.
+Of course, the number of operations is strongly correlated with
+the number of iterations, so the best choice is likely to use
+\verb@opts.maxIts@ instead.
+
+\section{Constructing models}
+\label{sec:functions}
+
+The key tasks in the construction of a TFOCS model is the
+specification of the smooth function, the linear operator, and
+the nonsmooth function. The simplest way to do so is to use
+the suite of \emph{generators} provided by TFOCS. A 
+generator is a MATLAB function that accepts a variety of parameters
+as input, and returns as output a function handle suitable for use in TFOCS. 
+The generators that TFOCS provides for smooth functions, linear operators,
+and nonsmooth functions are listed in the subsections below.
+
+If the generator library does not suit your application, then you
+will have to build your own functions. To do so, you 
+will need to be reasonably comfortable with MATLAB programming, 
+including the concepts of function handles and anonymous functions.
+The following MATLAB help pages are good references:
+\begin{code}
+	doc function_handle
+	MATLAB > User Guide > Mathematics > Function Functions
+	MATLAB > User Guide > Programming Fundamentals > Types of Functions 
+	       > Anonymous Functions
+	Optimization Toolbox > User Guide > Setting Up an Optimization Problem 
+	       > Passing Extra Parameters
+\end{code}
+The use of function handles
+and structures is similar to functions like {\tt fminunc}
+from MATLAB's {\tt Optimization Toolbox}.
+
+Remember, TFOCS expects minimization objectives to be convex
+and maximization objectives to be concave. 
+TFOCS makes no attempt to check if your function complies with
+these conditions, or if the quantities are computed correctly.
+The behavior of TFOCS when given incorrect function definitions
+is undefined; it  \emph{may} terminate gracefully, but it 
+may also exhibit strange behavior.
+
+If you do implement your own functions---even better,
+if you implement your own function \emph{generators}---then we hope
+you will consider submitting them to us so that we may include
+them in a future version of TFOCS.
+
+\subsection{Functions: smooth and nonsmooth}
+\label{sec:smoothandnon}
+
+When TFOCS is given a smooth function $f$, it must be able
+to compute its gradient $\nabla f(x)$ at any point $x\in\dom f$.
+(Note that this implies that $\dom f$ is open.) On the other hand,
+when given a nonsmooth function $h$, it must 
+be able to compute the proximity operation
+\begin{equation}
+	\label{eq:proxminf}
+	x = \Phi_h(z,t) = \argmin_x h(x) + \thalf t^{-1} \< x - z, x - z \>.
+\end{equation}
+Put another way, we are to find the unique value of $z$ that satisfies
+\begin{equation}
+	0 \in \partial h(z) + t^{-1} ( z - x ),
+\end{equation}
+where $\partial h(z)$ represents the subgradient of $h$ at $z$.
+But in fact, for some differentiable functions, this proximity operation
+can be computed efficiently: for instance,
+\begin{equation}
+	f(x)=\thalf x^Tx \quad\Longrightarrow\quad 
+	\nabla f(x)=x, ~ \Phi_f(x,t)=(1-t)x.
+\end{equation}
+While there is no reason to use a nonsmooth function in this manner
+with \verb@tfocs.m@, it does allow certain smooth objectives to be
+specified for \verb@tfocs_SCD@, or perhaps for other standard forms
+we might consider in the future. 
+
+For that reason, TFOCS defines a 
+single, unified convention for implementing smooth and
+nonsmooth functions. 
+The precise computation that TFOCS is requesting at any given time is
+determined by the number of inputs and arguments employed:
+\begin{trivlist}
+\item \emph{Computing the value.} With a single input and single output,
+\begin{code}
+	v = func( x )
+\end{code}
+the code must return the value of the function at the current point.
+\item \emph{Computing the gradient.} With a single input and two outputs, 
+\begin{code}
+	[ v, grad ] = func( x )
+\end{code}
+the code must return the value and gradient of the function at the
+current point.
+\item \emph{Performing proximity minimization.} With two input
+arguments,
+\begin{code}
+	[ vz, z ] = func( x, t )
+\end{code}
+the code is to determine the minimizer \verb@z@ of the proximity 
+minimization (\ref{eq:proxminf}) above, and return the value of the
+function $f(z)$ evaluated at that point.
+\end{trivlist}
+
+\subsubsection{Generators}
+\label{sec:smoothg}
+
+\paragraph{Smooth functions:}
+\begin{trivlist}
+\item \verb@smooth_constant( d )@: $f(x)\equiv d$. $d$ must be real.
+\item \verb@smooth_linear( c, d )@: $f(x)=\<c,x\>+d$. If \verb@d@
+is omitted, then \verb@d=0@ is assumed. \verb@c@ may be real or complex,
+but \verb@d@ must be real.
+\item \verb@smooth_quad( P, q, r )@: $f(x)=\thalf \<x,Px\>+\<q,x\>+r$. 
+\verb@P@ must either be a matrix or a square linear operator. It must
+be  positive or negative semidefinite, as appropriate, but this is not checked.
+All arguments are optional; the defaults are \verb@P=I@, \verb@q=0@, and \verb@r=0@, thus
+calling \verb@smooth_quad@ with no arguments yields $f(x)=\thalf\<x,x\>$.
+\verb@r@ must be real, but \verb@P@ and \verb@q@ may be complex.
+\item \verb@smooth_logsumexp@: $f(x)=\log\sum_{i=1}^n e^{x_i}$. This generator
+takes no arguments.
+\item \verb@smooth_entropy@: $f(x)=-\log\sum_{i=1}^n x_i\log x_i$. This generator
+also takes no arguments. This function is concave. \emph{Important note:} the entropy
+function fails the Lipschitz continuity test used to guarantee the global convergence and 
+performance of the first-order methods.
+\item \verb@smooth_logdet@: 
+\end{trivlist}
+The functions \verb@smooth_constant@, \verb@smooth_linear@, and the
+argument-free version of \verb@smooth_quad@ (implementing $f(x)=\thalf\<x,x\>$)
+can be used in both smooth and nonsmooth contexts.
+
+\paragraph{Indicator functions:}
+\begin{trivlist}
+\item \verb@proj_Rplus@: the nonnegative orthant $\R^n_+\triangleq\{x\in\R^n\,|\,\min_i x_i\geq 0\}$.
+\item \verb@proj_simplex( s )@: the $s$-simplex $S_t\triangleq\{x\in\R^n\,|\,\min_i x_i\geq 0,\,\sum_i x_i=s\}$.
+\item \verb@proj_l1( s )@: the $\ell_1$ ball $\{x\,|\,\|x\|_1\leq s \}$.
+\item \verb@proj_l2( s )@: the $\ell_2$ ball $\{x\,|\,\|x\|_2\leq s \}$.
+\item \verb@proj_linfty( s )@: the $\ell_\infty$ ball $\{x\,|\,\|x\|_\infty\leq s \}$.
+\item \verb@proj_psd@: the space of positive definite matrices: $\{X\in\R^{n\times n}\,|\,\lambda_{\min}(X+X^H)\geq 0\}$.
+\item \verb@proj_psdUTrace( s )@: the space of positive definite matrices with trace $s$: $\{X\in\R^{n\times n}\,|\,\lambda_{\min}(X+X^H)\geq 0,~\mathop{\textrm{Tr}}(X)=s\}$.
+\item \verb@proj_box( l, u )@: the box $\{x\in\R^n\,|\,\ell\preceq x \preceq u\}$.
+\item \verb@proj_Rn@. the entire space $\R^n$ (i.e., the unconstrained case).
+\end{trivlist}
+For all of the cases that accept a single parameter \verb@s@, it is
+optional; if omitted, \verb@s=1@ is assumed. So, for instance,
+\verb@proj_l2@ returns the indicator of the $\ell_2$ ball of unit
+radius.
+
+\paragraph{Other nonsmooth functions:}
+\begin{trivlist}
+\item \verb@prox_l1( s )@:.\verb@prox_l2( s )@, \verb@prox_linf( s )@. $h(x)=s\|x\|_1$, $s\|x\|_2$, and $s\|x\|_\infty$, respectively.
+\item \verb@prox_nuclear( s )@. The nuclear norm scaled by $s$: $h(X) = s\cdot \sum_{i=1}^n \sigma_i(X)$. 
+\item \verb@prox_0@. A synonym for \verb@proj_Rn@; $h(x)\equiv 0$.
+\end{trivlist}
+As with the indicator functions, \verb@s@ is optional; \verb@s=1@ is assumed if it is omitted.
+
+\paragraph{Function combining and scaling:}
+\begin{trivlist}
+\item \verb@tfunc_sum( f1, f2, ..., fn )@. $f(x)=\sum_i f_i(x)$. The
+inputs are handles to other functions. They must all have the same curvature;
+do not mix convex and concave functions together.
+Sums are only useful for smooth functions; it is generally not possible
+to efficiently solve the proximity minimization for sums.
+\item \verb@tfunc_scale( f1, s, A, b )@. $f(x)=s\cdot f(A\cdot x + b)$. \verb@s@ must
+be a real scalar, and \verb@f1@ must be a handle to a smooth function. \verb@A@
+must be a scalar, a matrix, or a linear operator; and \verb@b@ must be a vector.
+\verb@A@ and \verb@b@ are optional; if not supplied, they default to \verb@A=1@, \verb@b=0@.
+
+This function can be used to scale both smooth and nonsmooth functions
+as long as \verb@A@ is a nonzero scalar (or if it is omitted). If \verb@A@
+is a matrix or linear operator, it can only be applied to smooth functions.
+Furthermore, in this latter case it is more efficient to move \verb@A@ into the
+linear operator specification.
+\end{trivlist}
+
+
+\subsubsection{Building your own}
+\label{sec:smoothb}
+
+In order to properly determine which computation TFOCS is requesting,
+it is necessary to test both \verb@nargin@ (the number of input arguments)
+and \verb@nargout@ (the number of output arguments). The examples
+in this section provide useful templates for performing these tests.
+That said,  TFOCS will not attempt to compute the gradient of any function
+it expects to be smooth; likewise, it will not attempt a proximity
+minimization for any function it expects to be nonsmooth. Furthermore,
+when supplied, the step size \verb@t@ is guaranteed to be positive.
+
+With \verb@x@ and \verb@t@ being the only input arguments,
+it would seem impossible
+to specify functions to TFOCS that depend on one or more known 
+(but fixed) parameters. That problem is resolved using MATLAB's
+\emph{anonymous function} facility. For example, consider how we 
+would implement a quadratic function $f(x)\triangleq \thalf x^TPx+q^Tx+r$.
+(Of course, TFOCS already includes a \verb@smooth_quad@ generator.)
+We can easily create a
+function that accepts $P$, $q$, $r$, and $x$, and returns the
+value and gradient of the function:
+\begin{code}
+	function [ f, g ] = quad_func( P, q, r, x, t )
+	if nargout == 5,
+	    error( 'This function does not support proximity minimization.' );
+	else
+	    g = P * x + q;
+	    f = 0.5 * ( x' * ( g + q ) ) + r;
+	end
+\end{code}
+TFOCS cannot use this function in this form.
+But using an anonymous function, we can ``hide'' the first three 
+arguments as follows:
+\begin{code}
+	my_quad = @(varargin)quad_func( P, q, r, varargin{:} );
+\end{code}
+Now, calls to \verb@my_quad( x )@ will automatically call \verb@quad_func@
+with the given values of \verb@P@, \verb@q@, and \verb@r@. The way we
+have designed it \verb@my_quad( x, t )@ will result in an error
+message.
+
+There is
+one important caveat here: once \verb@my_quad@ has been created, the
+values of \verb@P@, \verb@q@, and \verb@r@ that it uses are fixed.
+This is due to the way MATLAB constructs anonymous functions. So
+don't change \verb@P@ \emph{after the fact} expecting your function
+to change with it! Instead, to you must actually
+\emph{re-create} the anonymous function again.
+
+For an example of an indicator function, let us show how to implement the
+function generated by \verb@proj_box@. A four-argument version of
+the function is
+\begin{code}	
+	function [ hx, x ] = proj_box_lu( l, u, x, t )
+	hx = 0;
+	if nargin == 4,
+	    x = max( min( x, u ), l );
+	elseif nargout == 2,
+	    error( 'This function is not differentiable.' );
+	elseif any( x < l ) || any( x > u ),
+	    hx = Inf;
+	end
+\end{code}
+To convert this to a form usable by TFOCS, we utilize an anonymous
+function to hide the first two arguments:
+\begin{code}
+	my_box = @(varargin)proj_box_lu( l, u, varargin{:} );
+\end{code}
+Note the use of the value \verb@+Inf@ to indicate that the
+input \verb@x@ falls outside of the box.
+
+Finally, for an example of a nonsmooth function that is not
+an indicator, here is an implementation of the $\ell_1$ norm 
+$h(z)=\|z\|_1$:
+\begin{code}
+	function [ hx, x ] = l1_norm( x, t )
+	if nargin == 2,
+	    x  = sign(x) .* max( abs(x) - t, 0 );
+	elseif nargout == 2,
+	    error( 'This function is not differentiable.' );
+	end		
+	hx = sum( abs( x ) );
+\end{code}
+This is the well known shrinkage operator from sparse recovery.
+TFOCS includes a more advanced version of this function in its
+library with support for scaling and complex vectors. 
+
+\subsection{Linear operators}
+\label{sec:linear}
+
+The calling sequence for the implementation \verb@linearF@ of a linear operator $\cA$ is as follows:
+\begin{code}
+	y = linearF( x, mode )
+\end{code}
+The first input \verb@x@ is the input to the operation. The 
+second input \verb@mode@ describes what the operator should do,
+and can take one of three values:
+\begin{itemize}
+\item \verb@mode=0@: the function should return the size of
+the linear operator; more on this below. The first argument \verb@x@ is ignored.
+\item \verb@mode=1@: the function should apply the forward operation $y=\cA(x)$.
+\item \verb@mode=2@: the function should apply the adjoint operation $y=\cA^*(x)$.
+\end{itemize}
+
+In addition to the generators listed below, TFOCS provides two additional
+functions, \verb@linop_normest@ and \verb@linop_test@, that provide useful
+information about linear operators.
+The function \verb@linop_normest@ estimates the induced operator norm 
+\begin{equation}
+	\| \cA \| \triangleq \max_{\|x\|=1} \|\cA(x)\| = \max_{\<x,x\>=1} \< \cA(x),\cA(x)\>^{1/2}
+\end{equation}
+which is useful when rescaling matrices for more efficient computation (see
+\S\ref{sec:scaling}). The function \verb@linop_test@ performs some useful
+tests to verify the correctness of a linear operator; see \S\ref{sec:linearb}
+below for more information.
+
+\subsubsection{Generators}
+
+\begin{trivlist}
+\item \verb@linop_matrix( A, cmode )@. $\cA(x) = A \cdot x$.
+If \verb@A@ is complex, then the second input \verb@cmode@ is required; 
+it is described below.
+\item \verb@linop_dot( c, adj )@. $\cA(x) = \<c,x\>$ if \verb@adj=false@
+or \verb@adj@ is omitted; $\cA(x) = c \cdot x$ if \verb@adj@ is true. In
+other words, \verb@linop_dot( c, true )@ is the adjoint of \verb@linop_dot( c )@.
+\item \verb@linop_scale( s )@. $\cA(x) = s \cdot x$. \verb@s@ must be a scalar.
+\item \verb@linop_handles( sz, Af, At, cmode )@. Constructs a linear operator
+from two function handles \verb@Af@ and \verb@At@ that implement the
+forward and adjoint operations, respectively. The \verb@sz@ parameter
+describes the size of the linear operator, according to the rules
+described in \S\ref{sec:linearb} below. The \verb@cmode@ string is
+described below.
+\item \verb@linop_compose( A1, A2, ..., An )@. Constructs the operator formed from
+the composition of $n$ supplied operators or matrices: $\cA(x)=\cA_1(\cA_2(...\cA_N(x)...))$.
+Any matrices must be real; complex matrices must first be converted to operators
+first using \verb@linop_matrix@.
+\item \verb@linop_spot( opSpot, cmode )@. Constructs a TFOCS-compatible linear
+operator from a linear operator object from the SPOT library \cite{SPOT}.
+If the operator is complex, then the \verb@cmode@
+string must also be supplied. In a later version of TFOCS, you will be
+able to pass SPOT operators directly into TFOCS.
+\item \verb@linop_adjoint( A1 )@. $\cA(x) = \cA_1^*(x)$. That is, \verb@linop_adjoint@
+returns a linear operator that is the adjoint of the one supplied.
+\item \verb@linop_TV( sz )@. Implements a real-to-complex total variation
+operator for a matrix of size \verb@sz@. Given an instance \verb@tv_op@ of
+this operator, the total variation of a matrix \verb@X@ is \verb@norm(tv_op(X,1),1)@.
+\end{trivlist}
+
+For \verb@linop_matrix@, \verb@linop_handles@, and \verb@linop_spot@, a
+string parameter \verb@cmode@ is used to specify how the operator is to interact
+with complex inputs. The string can take one of four values:
+\begin{itemize}
+\item \verb@'C2C'@: The input and output spaces are both complex.
+\item \verb@'R2C'@: The input space is real, the output space is complex.
+\item \verb@'C2R'@: The input space is complex, the output space is real.
+\item \verb@'R2R'@: The input and output spaces are both real. This is provided
+primarily for completeness, and effectively causes \verb@imag(A)@ to be ignored.
+\end{itemize}
+So for instance, given the operator
+\begin{code}
+	linearF = linop_matrix( A, 'R2C' ),
+\end{code}
+The forward operation \verb@linearF(x,1)@ will compute \verb@A*x@, and the
+adjoint operation \verb@linearF(x,2)@ will compute \verb@real(A'*x)@. If
+one of these operators is fed a complex input when it is not expected---for
+instance, if \verb@linearF@ is fed a complex input with \verb@mode=2@---then
+an error will result.
+
+\subsubsection{Building your own}
+\label{sec:linearb}
+
+When building your own linear operator, one of the trickier
+aspects is correctly reporting the size of the linear operator when
+\verb@mode=0@. There are actually two ways to do this. For linear
+operators that operate on column vectors, we can use a standard MATLAB
+convention \verb@[m,n]@, where \verb@m@ is the number of \emph{output} elements and
+\verb@n@ is the number of \verb@n@ \emph{input} elements (in the forward operation).
+Note that this is exactly the result that would be returned by \verb@size(A)@ if \verb@A@
+were a matrix representation of the same operator.
+
+However, TFOCS also supports operators that can operate on matrices and
+arrays; and a future version will support custom vector space objects
+as well. Therefore, the standard MATLAB convention is insufficient. To
+handle the more general case, a linear operator object can return a
+2-element \emph{cell array} \verb@{ i_size, o_size }@, where
+ \verb@i_size@ is the size of the input, and \verb@o_size@ is
+the size of the output (in the forward operation). Note that the input
+size comes first.
+
+For example, consider the linear operator described by the Fourier transform:
+\begin{code}
+	function y = fft_linop( N, x, mode )
+	switch mode,
+	case 0, y = [N,N];
+	case 1, y = (1/sqrt(N)) * fft( x );
+	case 2, y = sqrt(N) * ifft( x );
+	end
+\end{code}
+To use the alternate size convention, replace the \verb@case 0@ line above with this:
+\begin{code}
+	case 0, y = { [N,1], [N,1] };
+\end{code}
+For use with TFOCS, we construct an anonymous function to hide the first input:
+\begin{code}
+	fft_1024 = @(x,mode)fft_linop( N, x, mode );
+\end{code}
+
+It is a common error when constructing linear operator objects to compute
+the adjoint operation incorrectly. For instance, note the scaling factors
+used in \verb@fft_linop@ above, which yield a unitary linear operator;
+other scaling factors are possible, but to omit them altogether would
+destroy the adjoint relationship. The key mathematical identity that
+defines the adjoint of $\cA^*$ is its satisfaction of the inner product test,
+\begin{equation}
+	\< y, \cA(x) \> = \< \cA^*(y), x \> \quad \forall x,y.
+\end{equation}
+We encourage you to fully test your linear operators by verifying compliance
+with this condition before attempting to use it in TFOCS.
+The function \verb@linop_test@ will do this for you: it
+accepts a linear operator as input
+and performs a number of inner product tests using randomly generated data.
+Upon completion, it prints out measures of deviation from compliance with
+this test, as well as estimates of the operator norm.
+
+\section{Advanced usage}
+\label{sec:advanced}
+
+\subsection{Matrix variables}
+\label{sec:matvec}
+
+It is not necessary to limit oneself to simple vectors in TFOCS;
+the system will happily accept variables that are matrices or
+even multidimensional arrays. Image processing
+models, for instance,
+may keep the image data in its natural two-dimensional  
+matrix form.
+
+The functions \verb@tfocs_dot.m@ and \verb@tfocs_normsq.m@ 
+provide an implementation of the inner product $\<x,y\>$ 
+and the implied squared norm $\|x\|^2=\<x,x\>$ that work
+properly with matrices and arrays. Using these operators
+instead of your own will help to minimize errors.
+
+Linear operators must be implemented with care; in particular, you 
+must define the size behavior properly; that is, the behavior
+when the linear operator is called with the \verb@mode=0@
+argument. For instance, to define an operator \verb@linearF@
+that accepts
+arrays of size $m\times n$ as input and returns vectors of
+size $p$ as output, a call to \verb@linearF([],0)@ must
+return the cell array \verb@{[m,n],[p,1]}@. The reader
+is encouraged to study \S\ref{sec:linearb} closely, and to
+consider the matrix-based example models provided in the library itself.
+
+Smooth and nonsmooth functions may be implemented
+to accept matrix or array-valued inputs as well. Standard
+definitions of convexity or concavity must hold. For instance,
+if $f$ is concave, then it must be the case that
+\begin{equation}
+	f(Y) \leq f(X) + \< \nabla f(X), Y - X \> \quad \forall X\in\dom f,\,Y
+\end{equation}
+Note that $\nabla f(X)$ is a member of the same vector space as $X$ itself.
+Particular care must be exercised to implement the proximity minimization
+properly; for matrix variables, for instance, the corresponding 
+minimization involves the Frobenius norm:
+\begin{equation}
+	\Phi_h(X,t) = \argmin_Z h(Z) + \thalf t^{-1} \|Z-X\|_F^2
+\end{equation}
+
+\subsection{Complex variables and operators}
+
+As we have already stated, TFOCS supports complex variables, linear
+operators on complex spaces, and functions accepting a complex input.
+Nevertheless, we feel it worthwhile to collect the various caveats
+that one must follow when dealing with complex variables under a single
+heading.
+
+First of all, note that TFOCS works exclusively with Hilbert spaces.
+Thus they must have a \emph{real} inner product; e.g., for
+$\C^n$, $\<x,y\>=\Re x^H y$. In other contexts, complex vector
+spaces are given complex inner products satisfying $\<x,y\>=\overline{\<y,x\>}$;
+but only the real inner product allows us to define the metric
+$\|x\|=\<x,x\>^{1/2}$. This distinction is particularly important when
+verifying the correctness of linear operators applied to complex
+vector spaces, as discussed in \S\ref{sec:linearb}. TFOCS provides
+a function \verb@tfocs_dot.m@ that computes the correct inner
+product for all real and complex vectors and spaces. The function
+\verb@tfocs_normsq.m@ is defined as well, and implements $\|x\|^2$
+in a manner consistent with that inner product.
+
+Secondly, note that care must be taken when constructing
+linear operators that map from real to complex vector spaces,
+or vice versa. The complex-to-real 
+direction must be implemented properly---specifically, the operator 
+\emph{itself} ensures that the output is real. This is precisely
+why the \verb@linop_matrix@ and \verb@linop_handles@ functions
+require an explicit statement of the intended real/complex behavior.
+In the case of \verb@linop_matrix@, the function it generates
+will take the real part for you, when appropriate. But in
+the case of \verb@linop_handles@, it expects the functions you
+provide to do this work, and will throw an error if it detects otherwise.
+
+Finally, note that convex and concave functions by their very 
+definition are real-valued, even if they accept complex input.
+The same caveats given for matrix variables in \S\ref{sec:matvec}
+also apply here. For instance, note that the gradient of a function
+accepting complex input is itself complex.
+
+\subsection{Block structure}
+
+Suppose for a moment you wish to construct a model whose smooth component
+is the sum of simpler smooth functions, like so:
+\begin{equation}
+	\begin{array}{ll}
+		\text{minimize} & \phi(x) \triangleq \sum_i f_i(\cA_i(x)+b_i) + h(x)
+	\end{array}		
+\end{equation}
+This can be accomplished using a combination of
+calls to \verb@tfocs_sum@ and \verb@tfocs_scale@:
+\begin{code}
+	f = tfocs_sum( tfocs_scale( f1, 1, A1, b1 ), ...
+	               tfocs_scale( f2, 1, A2, b2 ), ...
+\end{code}
+But this approach circumvents more efficient use of linear operators that
+TFOCS provides; and it is quite cumbersome to boot.
+
+As an alternative, TFOCS allows you to specify a cell array of smooth
+functions, and a corresponding cell \emph{matrix} of affine operations, like so:
+\begin{code}
+	smoothF = { f1, f2, f3, f4 };
+	affineF = { A1, b1 ; A2, b2 ; A3, b3 ; A4, b4 };
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF );
+\end{code}
+Note the use of both commas and semicolons in \verb@affineF@ to construct
+a $4\times 2$ cell array: the number of rows equals the number
+of smooth functions provided. 
+
+Now consider the following case, in which the optimization variable has
+Cartesian structure, and the nonsmooth function is separable:
+\begin{equation}
+	\begin{array}{ll}
+		\text{minimize} & \phi(x) \triangleq f(\sum_i\cA_i(x^{(i)})+b) + \sum_i h_i(x^{(i)})
+	\end{array}		
+\end{equation}
+To accommodate this case, TFOCS allows the affine operator matrix
+to be extended \emph{horizontally}:
+\begin{code}
+	affineF = { A1, A2, A3, A4, b };
+	nonsmoothF = { h1, h2, h3, h4 };
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF );
+\end{code}
+The number of columns in the cell array is
+\emph{one greater} than the number of nonsmooth functions, due to the
+presence of the constant offset \verb@b@. The return value \verb@x@ 
+will be a four-element cell array; likewise, if we were to specify
+an initial point \verb@x0@, we must provide a cell
+array of four elements.
+
+The logical combination of these cases yields a model
+with multiple smooth functions, linear operators, and
+nonsmooth functions:
+\begin{equation}
+	\begin{array}{ll}
+		\text{minimize} & \phi(x) \triangleq \sum_{i=1}^M f(\sum_{j=1}^N \cA_{i,j}(x^{(j)})+b) + \sum_j h_i(x^{(j)})
+	\end{array}		
+\end{equation}
+A corresponding TFOCS model might look like this:
+\begin{code}
+	smoothF = { f1, f2 };
+	affineF = { A11, A12, A13, A14, b1 ; A21, A22, A23, A24, b2 };
+	nonsmoothF = { h1, h2, h3, h4 };
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF );
+\end{code}
+Again, the number of rows of \verb@affineF@ equals the number of
+smooth functions, while
+the number of columns equals the number of nonsmooth
+functions \emph{plus one}.
+
+The above are the basics. To that, we have added some conventions that,
+we hope, will further simplify the use of block structure:
+\begin{itemize}
+\item The scalar value \verb@0@ can be used in place of any entry in
+the affine operator matrix; TFOCS will determine its proper dimension
+if the problem is otherwise well-posed.
+\item Similarly, the scalar value \verb@1@ can be used in place of
+any linear operator to represent the identity operation $\cA_{ij}(x)\equiv x$.
+\item Real matrices can be used in place of linear operators; they will
+be converted to linear operators automatically. (You must convert complex
+matrices yourself, so you can properly specify the real/complex behavior.)
+\item If all of the constant offsets are zero, the last column may be omitted entirely.
+\item For a smooth-plus-affine objective
+$f(\cA(x)+b)+\<c,x\>+d$, the TFOCS model is
+\begin{code}
+	smoothF = { f, smooth_linear( 1 ) };
+	affineF = { A, b ; linop_dot( c ), d };
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF );
+\end{code}
+In this case, we have provided a simplification: you can omit the
+\verb@smooth_linear@ term and the \verb@linop_dot@ conversion, and let
+TFOCS add them for you:
+\begin{code}
+	smoothF = f;
+	affineF = { A, b ; c, d };
+	[ x, out ] = tfocs( smoothF, affineF, nonsmoothF );
+\end{code}
+This convention generalizes to the case when you have multiple 
+smooth or nonsmooth functions as well.
+The rule is this: if the number of rows in the affine matrix is
+one greater than the number of smooth functions,
+TFOCS assumes that the final row represents a linear functional.
+\end{itemize}
+
+Many of the \verb@solver_@ drivers utilize this block composite
+structure. You are encouraged to examine those as further examples
+of how this works. It may seem complicated at first---but we argue
+that this is because the models \emph{themselves} are complicated.
+We hope that our cell matrix approach has at least made it as simple
+as possible to specify the models once they are formulated.
+
+\subsection{Block structure and SCD models}
+\label{sec:SCD}
+
+For \verb@tfocs_SCD.m@, the composite standard form looks like this:
+\begin{equation}
+	\label{eq:comp-scd}
+	\begin{array}{ll}
+		\text{minimize} &  \sum_{j=1}^N \bar{f}_i(x^{(j)}) + \thalf \mu \| x^{(j)} - x_0^{(j)} \|^2 + \sum_{i=1}^M h_i(\sum_{j=1}^N \cA_{i,j}(x^{(j)})+b_i)
+	\end{array}		
+\end{equation}
+In this case, the composite convention is precisely reversed:
+\begin{itemize}
+\item The number of rows of the affine matrix must equal the number of
+nonsmooth functions $h_i$, or be one greater. In the latter case, the
+last row is assumed to represent a linear functional.
+\item The number of columns must equal the number of objective
+functions $g_j$, or be one greater. In the latter case, the last
+column represents the constant offsets $b_i$.
+\end{itemize}
+
+It turns out that the composite form comes up quite often when 
+constructing compressed sensing problems in analysis form. Consider the model
+\begin{equation}
+	\label{eq:stdform4a} % SRB changing this to ``stdform4a''
+	\begin{array}{ll}
+	\text{minimize} & \alpha\|Wx\|_1 + \thalf\mu\|x-x_0\|_2^2 + h(\cA(x)+b).
+	\end{array}
+\end{equation}
+where $W$ is any linear operator, $\alpha > 0$, and $h$ is prox-capable.
+At first glance, this problem
+resembles the SCD standard form \eqref{eq:stdform2} with
+$\bar{f} = \alpha\|Wx\|_1$, but $\bar{f}$ is not prox-capable. 
+By rewriting it as follows,
+\begin{equation}
+	\label{eq:stdform4}
+	\begin{array}{ll}
+	\text{minimize} & 0 + \thalf\mu\|x-x_0\|_2^2 + h(\cA(x)+b) + \alpha\|Wx\|_1 
+	\end{array}
+\end{equation}
+it is now in \emph{composite} SCD form \eqref{eq:comp-scd} with $(M,N)=(2,1)$; specifically,
+\begin{equation}
+	\bar{f}_1(x) \triangleq 0, \quad h_1(y_1)\triangleq h(y_2), \quad h_2(y_2) \triangleq \alpha\|y\|_1, \quad
+	(\cA_1,b_1)\triangleq (\cA,b), \quad (\cA_2,b_2) \triangleq (W,0)
+\end{equation}
+So this problem may indeed be solved by \verb@tfocs_SCD.m@. In particular,
+the conjugate $h^*_2(z)$ is the indicator function of the norm ball $\{z\,|\,\|z\|_\infty\leq\alpha\}$.
+The code might look like this:
+\begin{code}
+	affineF = { A, b ; W, 0 };
+	dualproxF = { hstar, proj_linf( alpha ) };
+	[ x, out ] = tfocs_SCD( 0, affineF, dualproxF );
+\end{code}
+where, as its name implies, \verb@hstar@ implements the conjugate $h^*$.
+This technique is used in solvers such as \verb@solver_sBPDN_W.m@
+and \verb@solver_sBPDN_TV.m@.
+
+This technique generalizes to $\bar{f} = \sum_{i=1} \alpha_i\|W_i\|$
+in a natural fashion.
+
+\subsection{Scaling issues}
+\label{sec:scaling}
+
+[To be added.]
+
+\subsection{Custom vector spaces}
+
+We are currently experimenting with giving TFOCS the capability
+of handling custom vector spaces defined by user-defined MATLAB
+objects. This is useful when the iterates contain a kind of
+structure that is not easily represented by MATLAB's existing
+dense and sparse matrix objects. For example, in many sparse
+matrix completion problems, it is
+advantageous to store the iterates in the form $S+\sum_{i=1}^r s_i v_iw_i^T$,
+where $S$ is sparse (even zero) and the summation represents
+a low-rank matrix stored in dyadic form.
+
+The basic idea is this: we define a custom MATLAB object
+that can act like a vector space, giving it support for addition,
+subtraction, multiplication by scalars, and real inner products.
+If done correctly, TFOCS can manipulate these objects in the
+same manner that it currently manipulates vectors and matrices.
+
+Our first attempts will focus on the symmetric and non-symmetric
+versions of this sparse-plus-low-rank structure. Once these are
+complete, we will document the general interface so that users
+can construct their own custom vector spaces. Of course, this 
+is a particularly advanced application so we expect only a handful
+of experts will join us. But if you are already comfortable with
+using MATLAB's object system, feel free to contact us in advance
+with your thoughts.
+
+\section{Feedback and support}
+\label{sec:support}
+
+The current version of TFOCS was written by Michael Grant
+(\url{mcg@cvxr.com}) and Stephen Becker (\url{sbecker@acm.caltech.edu}), 
+with considerable design input and initial
+prototypes provided by Emmanuel Cand\`es (\url{candes@stanford.edu}). 
+We welcome your feedback,
+suggestions for improvement, and bug reports.
+
+If you encounter problems
+with TFOCS, we encourage you to contact Michael or Stephen. In order
+for us to effectively evaluate a bug report, we will need 
+the following information:
+\begin{itemize}
+\item The output of the \verb@tfocs_version@ command, which provides
+information about your operating system, your MATLAB version, and your
+TFOCS version. Just copy and paste this information from your MATLAB
+command window into your email.
+\item A description of the error itself. If TFOCS itself provided an
+error message, please copy the full text of the error output 
+into the bug report.
+\item If it is at all possible, please provide us with a brief code
+sample and supporting data that reproduces the error. If that cannot
+be accomplished, please provide a detailed description of the
+circumstances under which the error occurred.
+\end{itemize}
+We have a strong interest in making sure that TFOCS works
+well for its users. After all, we use it ourselves!
+But please note that as with any free software, 
+support is likely to be limited to bug fixes, accomplished
+as we have time to spare.
+You are welcome to contact us about paid support contracts if you
+would like more rapid response or custom enhancements.
+
+If you use TFOCS in published research, we require that you acknowledge
+this fact in your publication, citing both \cite{TFOCS} and the
+software itself in your
+bibliography. We also kindly request that you drop us a note and let
+us know that you have found it useful!
+
+\begin{thebibliography}{2}
+\bibitem[1]{TFOCS} S. Becker, E. J. Cand\`es, and M. Grant.
+Templates for convex cone problems with applications to sparse
+signal recovery. Technical report, Department of Statistics,
+Stanford University, 2010.
+Preprint available at \url{http://tfocs.stanford.edu/tfocs/paper.shtml}.
+\bibitem[2]{SPOT} E. van den Berg and M. Friedlander. Spot---a linear-operator
+toolbox. Software and web site, Department of Computer Science, 
+University of British Columbia, 2009. \url{http://www.cs.ubc.ca/labs/scl/spot/}.
+\bibitem[3]{prox}P. L. Combettes and J.-C. Pesquet, Proximal splitting methods in signal processing, in \emph{Fixed-Point Algorithms for Inverse Problems in Science and Engineering}, H. H. Bauschke, R. Burachik, P. L. Combettes, V. Elser, D. R. Luke, H. Wolkowicz, Editors. New York: Springer-Verlag, 2010.
+\url{http://arxiv.org/abs/0912.3522}
+\end{thebibliography}
+
+\end{document}
