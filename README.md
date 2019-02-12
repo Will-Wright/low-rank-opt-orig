@@ -1,4 +1,4 @@
-**This is a clone of the software package** `low-rank-opt` **by Michael Friedlander**.  **The original
+**This is a clone of the software package** `low-rank-opt` **by Michael Friedlander** (copied on 2/11/2019).  **The original
 can be found at** https://www.cs.ubc.ca/~mpf/pubs/low-rank-spectral-optimization-via-gauge-duality/
 
 Contents
