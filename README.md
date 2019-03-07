@@ -1,5 +1,4 @@
-**This is a clone of the software package** `low-rank-opt` **by Michael Friedlander** (copied on 2/11/2019).  **The original
-can be found at** https://www.cs.ubc.ca/~mpf/pubs/low-rank-spectral-optimization-via-gauge-duality/
+**This is an identical clone of the software package** `low-rank-opt` **by Michael Friedlander** (copied on 2/11/2019).  **The original copy of this package can be found at** https://www.cs.ubc.ca/~mpf/pubs/low-rank-spectral-optimization-via-gauge-duality/.  **See** https://github.com/Will-Wright/low-rank-opt-rapid-eig **for the modified version of this package which has been optimized for noisy phase retrieval.**
 
 Contents
 --------
